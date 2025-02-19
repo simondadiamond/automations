@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast, Toaster } from 'react-hot-toast';
 import { getAutomations, type Automation } from './lib/airtable';
 import AutomationForm from './components/AutomationForm';
 import AutomationCard from './components/AutomationCard';
+import AutomationDetail from './pages/AutomationDetail';
 import { Section, Container, Title, Subtitle, Button, Grid } from './theme';
 import styled from 'styled-components';
 
@@ -38,53 +40,59 @@ function App() {
   };
 
   return (
-    <Section>
-      <Toaster position="top-right" />
-      
-      <Container>
-        <Title>
-          <span>AI</span> Automations
-        </Title>
-        <Subtitle>
-          Streamline your workflow with powerful AI-driven automation tools
-        </Subtitle>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={
+          <Section>
+            <Toaster position="top-right" />
+            <Container>
+              <Title>
+                <span>AI</span> Automations
+              </Title>
+              <Subtitle>
+                Streamline your workflow with powerful AI-driven automation tools
+              </Subtitle>
 
-        <Button onClick={() => setShowForm(true)}>
-          <Plus size={20} />
-          Add Automation
-        </Button>
+              <Button onClick={() => setShowForm(true)}>
+                <Plus size={20} />
+                Add Automation
+              </Button>
 
-        <AnimatePresence>
-          {showForm && (
-            <AutomationForm
-              onClose={() => setShowForm(false)}
-              onSuccess={() => {
-                setShowForm(false);
-                loadAutomations();
-              }}
-            />
-          )}
-        </AnimatePresence>
+              <AnimatePresence>
+                {showForm && (
+                  <AutomationForm
+                    onClose={() => setShowForm(false)}
+                    onSuccess={() => {
+                      setShowForm(false);
+                      loadAutomations();
+                    }}
+                  />
+                )}
+              </AnimatePresence>
 
-        <Grid>
-          {loading ? (
-            <LoadingSpinner
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            />
-          ) : (
-            automations.map((automation) => (
-              <AutomationCard
-                key={automation.id}
-                automation={automation}
-                onDelete={loadAutomations}
-              />
-            ))
-          )}
-        </Grid>
-      </Container>
-    </Section>
+              <Grid>
+                {loading ? (
+                  <LoadingSpinner
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  />
+                ) : (
+                  automations.map((automation) => (
+                    <AutomationCard
+                      key={automation.id}
+                      automation={automation}
+                      onDelete={loadAutomations}
+                    />
+                  ))
+                )}
+              </Grid>
+            </Container>
+          </Section>
+        } />
+        <Route path="/automation/:id" element={<AutomationDetail />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
-export default App
+export default App;

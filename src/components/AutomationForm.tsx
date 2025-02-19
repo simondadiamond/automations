@@ -1,22 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { createAutomation } from '../lib/airtable';
-import {
-  Form,
-  FormGroup,
-  Input,
-  Button,
-  Label,
-  Card,
-} from '../theme';
+import { createAutomation, updateAutomation } from '../lib/airtable';
+import { Form, FormGroup, Input, Button, Label, Card, TextArea } from '../theme';
 import styled from 'styled-components';
-
-interface AutomationFormProps {
-  onClose: () => void;
-  onSuccess: () => void;
-}
+import { TONE_PAIRS } from '../constants/tones';
 
 const Modal = styled(motion.div)`
   position: fixed;
@@ -72,47 +61,123 @@ const InputTypeButton = styled(Button)`
   padding: 0.5rem 1rem;
 `;
 
-const inputTypes = [
-  { label: 'Text', icon: 'Text' },
-  { label: 'Audio Recording', icon: 'Audio' },
-  { label: 'Audio File', icon: 'Audio' },
-  { label: 'Document', icon: 'Document' },
-  { label: 'Tone', icon: 'Tone' },
-];
+const InputsContainer = styled.div`
+  max-height: 300px; /* Set a maximum height */
+  overflow-y: auto; /* Enable scrolling */
+  margin-bottom: 1rem;
+`;
 
-export default function AutomationForm({ onClose, onSuccess }: AutomationFormProps) {
-  const [title, setTitle] = useState('');
-  const [subtitle, setSubtitle] = useState('');
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [inputs, setInputs] = useState<Array<{ label: string; type: string }>>([]);
+const InputContainer = styled.div`
+  position: relative;
+  margin-bottom: 1rem;
+  background: ${({ theme }) => theme.cardBg};
+  border-radius: 0.5rem;
+  padding: 1rem;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  &:hover .delete-icon {
+    display: block; /* Show delete icon on hover */
+  }
+`;
+
+const InputLabel = styled.label`
+  color: ${({ theme }) => theme.neonCyan};
+  font-size: 0.9rem;
+  display: block;
+  margin-bottom: 0.5rem;
+`;
+
+const StyledInput = styled(Input)`
+  width: 100%; /* Set width to 100% */
+  padding: 0.5rem;
+  border: 1px solid ${({ theme }) => theme.borderColor};
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.2);
+  color: ${({ theme }) => theme.text};
+
+  &:focus {
+    border-color: ${({ theme }) => theme.neonCyan};
+    box-shadow: 0 0 0 1px ${({ theme }) => theme.neonCyan};
+  }
+`;
+
+const StyledTextArea = styled(TextArea)`
+  width: 100%; /* Set width to 100% */
+  padding: 0.5rem;
+  border: 1px solid ${({ theme }) => theme.borderColor};
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.2);
+  color: ${({ theme }) => theme.text};
+
+  &:focus {
+    border-color: ${({ theme }) => theme.neonCyan};
+    box-shadow: 0 0 0 1px ${({ theme }) => theme.neonCyan};
+  }
+`;
+
+const DropArea = styled.div`
+  border: 2px dashed ${({ theme }) => theme.borderColor};
+  border-radius: 0.5rem;
+  padding: 1rem;
+  text-align: center;
+  color: ${({ theme }) => theme.textSecondary};
+  background: rgba(0, 0, 0, 0.2);
+  margin-top: 0.5rem;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+`;
+
+const DeleteIcon = styled(Trash2)`
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  color: ${({ theme }) => theme.neonRed};
+  cursor: pointer;
+  display: none; /* Hidden by default */
+`;
+
+const AutomationForm = ({ onClose, onSuccess, initialData }) => {
+  const [title, setTitle] = useState(initialData.title || '');
+  const [subtitle, setSubtitle] = useState(initialData.subtitle || '');
+  const [webhookUrl, setWebhookUrl] = useState(initialData.webhookUrl || '');
+  const [inputs, setInputs] = useState(initialData.inputs || []);
+
+  const addInput = (type) => {
+    setInputs([...inputs, { label: '', type, value: '' }]);
+  };
+
+  const handleInputChange = (index, field, value) => {
+    const newInputs = [...inputs];
+    newInputs[index][field] = value;
+    setInputs(newInputs);
+  };
+
+  const handleDeleteInput = (index) => {
+    setInputs(inputs.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     try {
-      await createAutomation({
+      await updateAutomation(initialData.id, {
         title,
         subtitle,
         webhookUrl,
         inputs: inputs.map((input, index) => ({
           label: input.label,
-          type: input.type as any,
-          value: '',
+          type: input.type,
+          value: input.value,
           order: index + 1,
-          automationId: '',
-          id: '',
         })),
       });
       
-      toast.success('Automation created successfully');
+      toast.success('Automation updated successfully');
       onSuccess();
     } catch (error) {
-      toast.error('Failed to create automation');
+      toast.error('Failed to update automation');
     }
-  };
-
-  const addInput = (type: string) => {
-    setInputs([...inputs, { label: '', type }]);
   };
 
   return (
@@ -127,7 +192,7 @@ export default function AutomationForm({ onClose, onSuccess }: AutomationFormPro
         exit={{ scale: 0.9, opacity: 0 }}
       >
         <ModalHeader>
-          <ModalTitle>New Automation</ModalTitle>
+          <ModalTitle>Edit Automation</ModalTitle>
           <CloseButton onClick={onClose}>
             <X size={24} />
           </CloseButton>
@@ -135,7 +200,7 @@ export default function AutomationForm({ onClose, onSuccess }: AutomationFormPro
 
         <Form onSubmit={handleSubmit}>
           <FormGroup>
-            <Input
+            <StyledInput
               type="text"
               placeholder="Title"
               value={title}
@@ -145,76 +210,96 @@ export default function AutomationForm({ onClose, onSuccess }: AutomationFormPro
           </FormGroup>
 
           <FormGroup>
-            <Input
+            <StyledInput
               type="text"
               placeholder="Subtitle"
               value={subtitle}
               onChange={(e) => setSubtitle(e.target.value)}
-              required
             />
           </FormGroup>
 
           <FormGroup>
-            <Input
+            <StyledInput
               type="url"
               placeholder="Webhook URL"
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
-              required
             />
           </FormGroup>
 
           <InputTypeButtons>
-            {inputTypes.map((type) => (
+            {['Text', 'Audio', 'Document', 'Tone'].map((type) => (
               <InputTypeButton
-                key={type.label}
+                key={type}
                 type="button"
-                onClick={() => addInput(type.icon)}
+                onClick={() => addInput(type)}
                 secondary
               >
                 <Plus size={16} />
-                {type.label}
+                {type}
               </InputTypeButton>
             ))}
           </InputTypeButtons>
 
-          {inputs.map((input, index) => (
-            <FormGroup key={index}>
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <Input
+          <InputsContainer>
+            {inputs.map((input, index) => (
+              <InputContainer key={index}>
+                <InputLabel>Label</InputLabel>
+                <StyledInput
                   type="text"
-                  placeholder="Label"
+                  placeholder="Enter label..."
                   value={input.label}
-                  onChange={(e) => {
-                    const newInputs = [...inputs];
-                    newInputs[index].label = e.target.value;
-                    setInputs(newInputs);
-                  }}
+                  onChange={(e) => handleInputChange(index, 'label', e.target.value)}
                   required
                 />
-                <CloseButton
-                  type="button"
-                  onClick={() => {
-                    const newInputs = inputs.filter((_, i) => i !== index);
-                    setInputs(newInputs);
-                  }}
-                >
-                  <Trash2 size={24} />
-                </CloseButton>
-              </div>
-            </FormGroup>
-          ))}
+                <InputLabel>{input.type}</InputLabel>
+                {input.type === 'Text' && (
+                  <StyledTextArea
+                    placeholder="Enter text..."
+                    rows={3}
+                    value={input.value}
+                    onChange={(e) => handleInputChange(index, 'value', e.target.value)}
+                  />
+                )}
+                {input.type === 'Audio' && (
+                  <DropArea>
+                    Drop your audio file here
+                  </DropArea>
+                )}
+                {input.type === 'Document' && (
+                  <DropArea>
+                    Drop your document here
+                  </DropArea>
+                )}
+                {input.type === 'Tone' && (
+                  <StyledInput
+                    as="select"
+                    value={input.value}
+                    onChange={(e) => handleInputChange(index, 'value', e.target.value)}
+                  >
+                    {TONE_PAIRS.map((tone) => (
+                      <option key={tone} value={tone}>
+                        {tone}
+                      </option>
+                    ))}
+                  </StyledInput>
+                )}
+                <DeleteIcon
+                  className="delete-icon"
+                  onClick={() => handleDeleteInput(index)}
+                  size={20}
+                />
+              </InputContainer>
+            ))}
+          </InputsContainer>
 
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-            <Button type="submit">
-              Create
-            </Button>
-            <Button type="button" onClick={onClose} secondary>
-              Cancel
-            </Button>
-          </div>
+          <Button type="submit">
+            Save Changes
+          </Button>
         </Form>
       </ModalContent>
     </Modal>
   );
-}
+};
+
+export default AutomationForm;

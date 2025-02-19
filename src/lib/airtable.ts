@@ -5,7 +5,7 @@ const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
 
 // Configure Airtable with the personal access token
 Airtable.configure({
-  apiKey: AIRTABLE_TOKEN, // The library still uses apiKey parameter but accepts tokens
+  apiKey: AIRTABLE_TOKEN,
   endpointUrl: 'https://api.airtable.com',
 });
 
@@ -97,6 +97,39 @@ export async function getAutomations(): Promise<Automation[]> {
   );
 
   return automations;
+}
+
+export async function getAutomationById(id: string): Promise<Automation> {
+  const record = await automationsTable.find(id);
+  console.log('Fetched Automation Record:', record); // Log the fetched record
+
+  const title = record.get('Title'); // Get the title from the record
+
+  const inputs = await inputsTable
+    .select({
+      filterByFormula: `{Automation} = "${title}"`, // Use the title for filtering
+      sort: [{ field: 'Order', direction: 'asc' }],
+    })
+    .all();
+
+  console.log('Fetched Inputs:', inputs); // Log the fetched inputs
+
+  return {
+    id: record.id,
+    title: title as string,
+    subtitle: record.get('Subtitle') as string,
+    webhookUrl: record.get('Webhook URL') as string,
+    createdAt: record.get('Created At') as string,
+    updatedAt: record.get('Updated At') as string,
+    inputs: inputs.map((input) => ({
+      id: input.id,
+      automationId: record.id,
+      label: input.get('Label') as string,
+      type: input.get('Type') as 'Text' | 'Audio' | 'Document' | 'Tone',
+      value: input.get('Value') as string,
+      order: input.get('Order') as number,
+    })),
+  };
 }
 
 export async function updateAutomation(id: string, data: Partial<Automation>) {
