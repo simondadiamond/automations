@@ -1,12 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { ArrowLeft, Edit } from 'lucide-react';
+import { ArrowLeft, Edit, X } from 'lucide-react';
 import { Card, Button, TextArea } from '../theme';
 import { getAutomationById } from '../lib/airtable';
 import { TONE_PAIRS } from '../constants/tones';
 import AutomationForm from '../components/AutomationForm';
 import { toast } from 'react-hot-toast';
+
+// Helper function to read a file and return its contents as a data URL
+const readFileContent = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => resolve(event.target.result);
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+};
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -32,7 +42,6 @@ const BackButton = styled.button`
   }
 `;
 
-// On mobile, the panels will stack vertically.
 const PageLayout = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -68,7 +77,6 @@ const Title = styled.h1`
   color: ${({ theme }) => theme.text};
 `;
 
-// Styled editable title input.
 const TitleInput = styled.input`
   font-size: 2rem;
   margin-bottom: 0.5rem;
@@ -79,7 +87,6 @@ const TitleInput = styled.input`
   width: 100%;
 `;
 
-// Styled editable subtitle textarea.
 const SubtitleInput = styled.input`
   color: ${({ theme }) => theme.textSecondary};
   margin-bottom: 2rem;
@@ -97,20 +104,41 @@ const InputLabel = styled.span`
   margin-bottom: 0.5rem;
 `;
 
-// Retained in case you want to style a drop area.
-// (Not used when we replace it with a file input below.)
 const DropArea = styled.div`
   border: 2px dashed ${({ theme }) => theme.borderColor};
   border-radius: 0.5rem;
   padding: 1rem;
   text-align: center;
   color: ${({ theme }) => theme.textSecondary};
-  background: rgba(0, 0, 0, 0.2);
+  background: ${({ isDragging }) => (isDragging ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.2)')};
   margin-top: 0.5rem;
   width: 100%;
+  cursor: pointer;
+  transition: background 0.3s ease, color 0.3s ease;
 
   &:hover {
     background: rgba(0, 0, 0, 0.3);
+    color: ${({ theme }) => theme.neonGreen};
+  }
+`;
+
+const FileDisplay = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  margin-top: 0.5rem;
+  color: ${({ theme }) => theme.textSecondary};
+`;
+
+const RemoveIcon = styled(X)`
+  cursor: pointer;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: red;
   }
 `;
 
@@ -127,7 +155,6 @@ const EditIcon = styled(Edit)`
   }
 `;
 
-// New styled container for the button.
 const ButtonContainer = styled.div`
   margin-top: 20px;
   display: flex;
@@ -138,37 +165,38 @@ const AutomationDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [automation, setAutomation] = useState(null);
-  // Local state holding current page values (title, subtitle, inputs)
   const [pageData, setPageData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [webhookResponse, setWebhookResponse] = useState("");
   const [isCallingWebhook, setIsCallingWebhook] = useState(false);
+  const [audioFile, setAudioFile] = useState(null);
+  const [documentFile, setDocumentFile] = useState(null);
+  const [isDragging, setIsDragging] = useState([]);
 
   useEffect(() => {
-  const fetchAutomation = async () => {
-    try {
-      const data = await getAutomationById(id);
-      // Set a default tone value if it's missing.
-      const inputsWithDefaults = data.inputs.map(input =>
-        input.type === 'Tone' && !input.value
-          ? { ...input, value: TONE_PAIRS[0] }
-          : input
-      );
-      setAutomation(data);
-      setPageData({
-        title: data.title,
-        subtitle: data.subtitle,
-        inputs: inputsWithDefaults,
-      });
-    } catch (error) {
-      console.error('Failed to fetch automation:', error);
-    }
-  };
+    const fetchAutomation = async () => {
+      try {
+        const data = await getAutomationById(id);
+        const inputsWithDefaults = data.inputs.map(input =>
+          input.type === 'Tone' && !input.value
+            ? { ...input, value: TONE_PAIRS[0] }
+            : input
+        );
+        setAutomation(data);
+        setPageData({
+          title: data.title,
+          subtitle: data.subtitle,
+          inputs: inputsWithDefaults,
+        });
+        setIsDragging(new Array(data.inputs.length).fill(false));
+      } catch (error) {
+        console.error('Failed to fetch automation:', error);
+      }
+    };
 
-  fetchAutomation();
-}, [id]);
+    fetchAutomation();
+  }, [id]);
 
-  // When the form is submitted, re-fetch and reinitialize.
   const handleUpdate = async () => {
     try {
       const updatedData = await getAutomationById(id);
@@ -184,7 +212,6 @@ const AutomationDetail = () => {
     }
   };
 
-  // Build and send a payload constructed from the current page elements.
   const callWebhook = async () => {
     if (!automation.webhookUrl) {
       toast.error("No webhook URL provided");
@@ -192,15 +219,33 @@ const AutomationDetail = () => {
     }
     setIsCallingWebhook(true);
     try {
+      // Read file contents if files exist
+      const audioData = audioFile ? await readFileContent(audioFile) : null;
+      const documentData = documentFile ? await readFileContent(documentFile) : null;
+
       const payload = {
         title: pageData.title,
         subtitle: pageData.subtitle,
-        // For each input, create an array [label, type, value]
-        inputs: pageData.inputs.map((input) => [
-          input.label,
-          input.type,
-          input.value,
-        ]),
+        inputs: pageData.inputs.map((input) => {
+          if (input.type === 'Audio') {
+            return [
+              input.label,
+              input.type,
+              audioFile
+                ? { fileName: audioFile.name, fileData: audioData }
+                : input.value,
+            ];
+          } else if (input.type === 'Document') {
+            return [
+              input.label,
+              input.type,
+              documentFile
+                ? { fileName: documentFile.name, fileData: documentData }
+                : input.value,
+            ];
+          }
+          return [input.label, input.type, input.value];
+        }),
       };
 
       const res = await fetch(automation.webhookUrl, {
@@ -224,7 +269,6 @@ const AutomationDetail = () => {
     }
   };
 
-  // Handlers for updating the pageData state.
   const handleTitleChange = (e) => {
     setPageData((prev) => ({ ...prev, title: e.target.value }));
   };
@@ -238,6 +282,73 @@ const AutomationDetail = () => {
       const newInputs = [...prev.inputs];
       newInputs[index] = { ...newInputs[index], value: newValue };
       return { ...prev, inputs: newInputs };
+    });
+  };
+
+  const handleFileDrop = (index, files, type) => {
+    if (files.length > 0) {
+      const file = files[0];
+      const fileName = file.name;
+      const fileType = file.type;
+
+      // Validate file type
+      if (type === 'Audio' && !fileType.startsWith('audio/')) {
+        toast.error('Please upload a valid audio file');
+        return;
+      }
+      if (type === 'Document' && !['application/', 'text/xml', 'application/json', 'application/xml'].some(prefix => fileType.startsWith(prefix))) {
+        toast.error('Please upload a valid document file');
+        return;
+      }
+      if (fileType === 'application/x-msdownload') {
+        toast.error('Executable files are not allowed');
+        return;
+      }
+
+      if (type === 'Audio') {
+        setAudioFile(file);
+      } else if (type === 'Document') {
+        setDocumentFile(file);
+      }
+      setPageData((prev) => {
+        const newInputs = [...prev.inputs];
+        newInputs[index] = { ...newInputs[index], value: fileName };
+        return { ...prev, inputs: newInputs };
+      });
+    }
+    setIsDragging((prev) => {
+      const newDragging = [...prev];
+      newDragging[index] = false;
+      return newDragging;
+    });
+  };
+
+  const removeFile = (index, type) => {
+    if (type === 'Audio') {
+      setAudioFile(null);
+    } else if (type === 'Document') {
+      setDocumentFile(null);
+    }
+    setPageData((prev) => {
+      const newInputs = [...prev.inputs];
+      newInputs[index] = { ...newInputs[index], value: "" };
+      return { ...prev, inputs: newInputs };
+    });
+  };
+
+  const handleDragEnter = (index) => {
+    setIsDragging((prev) => {
+      const newDragging = [...prev];
+      newDragging[index] = true;
+      return newDragging;
+    });
+  };
+
+  const handleDragLeave = (index) => {
+    setIsDragging((prev) => {
+      const newDragging = [...prev];
+      newDragging[index] = false;
+      return newDragging;
     });
   };
 
@@ -255,7 +366,6 @@ const AutomationDetail = () => {
       <PageLayout>
         <LeftPanel>
           <EditIcon onClick={() => setIsEditing(true)} size={20} />
-          {/* Editable title and subtitle */}
           <TitleInput
             value={pageData.title}
             onChange={handleTitleChange}
@@ -277,18 +387,46 @@ const AutomationDetail = () => {
                   style={{ width: '100%' }}
                   onChange={(e) => handleInputChange(index, e.target.value)}
                 />
-              ) : input.type === 'Audio' || input.type === 'Document' ? (
-                // Replace the drop area with a file input so the selection is captured.
-                <input
-                  type="file"
-                  style={{ width: '100%', padding: '0.5rem' }}
-                  onChange={(e) =>
-                    handleInputChange(
-                      index,
-                      e.target.files[0]?.name || ""
-                    )
-                  }
-                />
+              ) : input.type === 'Audio' ? (
+                audioFile ? (
+                  <FileDisplay>
+                    <span>{audioFile.name}</span>
+                    <RemoveIcon onClick={() => removeFile(index, 'Audio')} size={16} />
+                  </FileDisplay>
+                ) : (
+                  <DropArea
+                    isDragging={isDragging[index]}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleFileDrop(index, e.dataTransfer.files, 'Audio');
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDragEnter={() => handleDragEnter(index)}
+                    onDragLeave={() => handleDragLeave(index)}
+                  >
+                    Drop your audio file here
+                  </DropArea>
+                )
+              ) : input.type === 'Document' ? (
+                documentFile ? (
+                  <FileDisplay>
+                    <span>{documentFile.name}</span>
+                    <RemoveIcon onClick={() => removeFile(index, 'Document')} size={16} />
+                  </FileDisplay>
+                ) : (
+                  <DropArea
+                    isDragging={isDragging[index]}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleFileDrop(index, e.dataTransfer.files, 'Document');
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDragEnter={() => handleDragEnter(index)}
+                    onDragLeave={() => handleDragLeave(index)}
+                  >
+                    Drop your document file here
+                  </DropArea>
+                )
               ) : input.type === 'Tone' ? (
                 <select
                   value={input.value}
@@ -333,7 +471,7 @@ const AutomationDetail = () => {
       {isEditing && (
         <AutomationForm
           onClose={() => setIsEditing(false)}
-          onSuccess={handleUpdate} // Refresh automation data after update
+          onSuccess={handleUpdate}
           initialData={automation}
           mode="edit"
         />
