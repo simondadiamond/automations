@@ -21,7 +21,7 @@ import React, { useState } from 'react';
 
     const ModalContent = styled(Card)`
       width: 100%;
-      max-width: 42rem;
+      max-width: 42rem; /* Updated max-width */
       background: ${({ theme }) => theme.background};
     `;
 
@@ -54,7 +54,7 @@ import React, { useState } from 'react';
       color: ${({ theme }) => theme.neonRed};
       cursor: pointer;
       transition: color 0.2s ease;
-      margin-right: 20px; // Add margin for spacing
+      margin-left: 10px; // Add margin for spacing
 
       &:hover {
         color: red; // Change to red on hover
@@ -84,7 +84,7 @@ import React, { useState } from 'react';
       margin-bottom: 1rem;
       background: ${({ theme }) => theme.cardBg};
       border-radius: 0.5rem;
-      padding: 1rem;
+      padding: 1.5rem 1rem 1rem 1rem; /* Increased padding to create space for the delete icon */
 
       &:hover .delete-icon {
         display: block;
@@ -98,10 +98,39 @@ import React, { useState } from 'react';
       border-radius: 0.25rem;
       background: rgba(0, 0, 0, 0.2);
       color: ${({ theme }) => theme.text};
+      margin-bottom: 10px; /* Add margin for space between label and textarea/drop-down */
 
       &:focus {
         border-color: ${({ theme }) => theme.neonCyan};
         box-shadow: 0 0 0 1px ${({ theme }) => theme.neonCyan};
+      }
+    `;
+
+    const StyledTextArea = styled(TextArea)`
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid ${({ theme }) => theme.borderColor};
+      border-radius: 0.25rem;
+      background: rgba(0, 0, 0, 0.2);
+      color: ${({ theme }) => theme.text};
+
+      &:focus {
+        border-color: ${({ theme }) => theme.neonCyan};
+        box-shadow: 0 0 0 1px ${({ theme }) => theme.neonCyan};
+      }
+    `;
+
+    const DropArea = styled.div`
+      border: 2px dashed ${({ theme }) => theme.borderColor};
+      border-radius: 0.5rem;
+      padding: 1rem;
+      text-align: center;
+      color: ${({ theme }) => theme.textSecondary};
+      background: rgba(0, 0, 0, 0.2);
+      margin-top: 0.5rem;
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.3);
       }
     `;
 
@@ -112,36 +141,15 @@ import React, { useState } from 'react';
     `;
 
     const ConfirmationContent = styled(ModalContent)`
-      padding: 2rem;
-      text-align: center;
+      padding: 1rem; /* Adjust padding for smaller size */
+      max-width: 400px; /* Set a smaller max-width */
     `;
-		const StyledTextArea = styled(TextArea)`
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 0.25rem;
-  background: rgba(0, 0, 0, 0.2);
-  color: ${({ theme }) => theme.text};
 
-  &:focus {
-    border-color: ${({ theme }) => theme.neonCyan};
-    box-shadow: 0 0 0 1px ${({ theme }) => theme.neonCyan};
-  }
-`;
-
-const DropArea = styled.div`
-  border: 2px dashed ${({ theme }) => theme.borderColor};
-  border-radius: 0.5rem;
-  padding: 1rem;
-  text-align: center;
-  color: ${({ theme }) => theme.textSecondary};
-  background: rgba(0, 0, 0, 0.2);
-  margin-top: 0.5rem;
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.3);
-  }
-`;
+    const ButtonContainer = styled.div`
+      display: flex;
+      justify-content: space-around; /* Space between buttons */
+      margin-top: 1rem; /* Add margin above buttons */
+    `;
 
     interface AutomationFormProps {
       onClose: () => void;
@@ -224,6 +232,7 @@ const DropArea = styled.div`
         try {
           await deleteAutomation(initialData.id);
           toast.success('Automation deleted successfully');
+          onSuccess(); // Call the function to refresh the automation list
           navigate('/'); // Redirect to main page
         } catch (error) {
           toast.error('Failed to delete automation');
@@ -306,6 +315,12 @@ const DropArea = styled.div`
                 <InputsContainer>
                   {inputs.map((input, index) => (
                     <InputContainer key={index}>
+                      <DeleteIcon
+                        className="delete-icon"
+                        onClick={() => handleDeleteInput(index)}
+                        size={20}
+                        style={{ position: 'absolute', top: '1rem', right: '1rem' }} // Positioning the delete icon
+                      />
                       <StyledInput
                         type="text"
                         placeholder="Enter label..."
@@ -341,11 +356,6 @@ const DropArea = styled.div`
                           ))}
                         </StyledInput>
                       )}
-                      <DeleteIcon
-                        className="delete-icon"
-                        onClick={() => handleDeleteInput(index)}
-                        size={20}
-                      />
                     </InputContainer>
                   ))}
                 </InputsContainer>
@@ -370,8 +380,10 @@ const DropArea = styled.div`
               >
                 <ModalTitle>Confirm Deletion</ModalTitle>
                 <p>Are you sure you want to delete this automation?</p>
-                <Button onClick={confirmDelete}>Confirm</Button>
-                <Button onClick={cancelDelete}>Cancel</Button>
+                <ButtonContainer>
+                  <Button onClick={confirmDelete}>Confirm</Button>
+                  <Button onClick={cancelDelete}>Cancel</Button>
+                </ButtonContainer>
               </ConfirmationContent>
             </ConfirmationModal>
           )}
