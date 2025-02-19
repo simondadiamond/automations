@@ -67,7 +67,7 @@ const Subtitle = styled.p`
 `;
 
 const InputLabel = styled.span`
-  color: ${({ theme }) => theme.neonCyan};
+  color: ${({ theme }) => theme.text};
   font-size: 0.9rem;
   display: block;
   margin-bottom: 0.5rem;

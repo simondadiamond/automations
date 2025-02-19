@@ -51,7 +51,7 @@ export default function AutomationCard({ automation }: AutomationCardProps) {
       <FormGroup>
         {automation.inputs.map((input) => (
           <FormGroup key={input.id}>
-            <Label>{input.label}</Label>
+            <Label> {input.label}</Label>
             {input.type === 'Text' && (
               <TextArea
                 placeholder="Enter text..."
