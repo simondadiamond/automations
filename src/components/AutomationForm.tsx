@@ -330,7 +330,7 @@ import React, { useState } from 'react';
                       />
 
                       {input.type === 'Text' && (
-                        <StyledTextArea
+                        <StyledInput
                           placeholder="Enter text..."
                           rows={3}
                           value={input.value}

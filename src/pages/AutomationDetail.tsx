@@ -32,12 +32,17 @@ const BackButton = styled.button`
   }
 `;
 
+// On mobile, the panels will stack vertically.
 const PageLayout = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 2rem;
   max-width: 2000px;
   margin: 0 auto;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const LeftPanel = styled(Card)`
@@ -45,6 +50,8 @@ const LeftPanel = styled(Card)`
   background: ${({ theme }) => theme.cardBg};
   border: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
+  display: flex;
+  flex-direction: column;
 `;
 
 const RightPanel = styled(Card)`
@@ -61,9 +68,26 @@ const Title = styled.h1`
   color: ${({ theme }) => theme.text};
 `;
 
-const Subtitle = styled.p`
+// Styled editable title input.
+const TitleInput = styled.input`
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  color: ${({ theme }) => theme.text};
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+`;
+
+// Styled editable subtitle textarea.
+const SubtitleInput = styled.input`
   color: ${({ theme }) => theme.textSecondary};
   margin-bottom: 2rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 1rem;
 `;
 
 const InputLabel = styled.span`
@@ -73,6 +97,8 @@ const InputLabel = styled.span`
   margin-bottom: 0.5rem;
 `;
 
+// Retained in case you want to style a drop area.
+// (Not used when we replace it with a file input below.)
 const DropArea = styled.div`
   border: 2px dashed ${({ theme }) => theme.borderColor};
   border-radius: 0.5rem;
@@ -101,38 +127,121 @@ const EditIcon = styled(Edit)`
   }
 `;
 
+// New styled container for the button.
+const ButtonContainer = styled.div`
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+`;
+
 const AutomationDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [automation, setAutomation] = useState(null);
+  // Local state holding current page values (title, subtitle, inputs)
+  const [pageData, setPageData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [webhookResponse, setWebhookResponse] = useState("");
+  const [isCallingWebhook, setIsCallingWebhook] = useState(false);
 
   useEffect(() => {
-    const fetchAutomation = async () => {
-      try {
-        const data = await getAutomationById(id);
-        console.log('Fetched Automation Data:', data);
-        setAutomation(data);
-      } catch (error) {
-        console.error('Failed to fetch automation:', error);
-      }
-    };
+  const fetchAutomation = async () => {
+    try {
+      const data = await getAutomationById(id);
+      // Set a default tone value if it's missing.
+      const inputsWithDefaults = data.inputs.map(input =>
+        input.type === 'Tone' && !input.value
+          ? { ...input, value: TONE_PAIRS[0] }
+          : input
+      );
+      setAutomation(data);
+      setPageData({
+        title: data.title,
+        subtitle: data.subtitle,
+        inputs: inputsWithDefaults,
+      });
+    } catch (error) {
+      console.error('Failed to fetch automation:', error);
+    }
+  };
 
-    fetchAutomation();
-  }, [id]);
+  fetchAutomation();
+}, [id]);
 
-  // When the form is submitted, re-fetch the updated automation record.
+  // When the form is submitted, re-fetch and reinitialize.
   const handleUpdate = async () => {
     try {
       const updatedData = await getAutomationById(id);
       setAutomation(updatedData);
+      setPageData({
+        title: updatedData.title,
+        subtitle: updatedData.subtitle,
+        inputs: updatedData.inputs,
+      });
       toast.success('Automation updated successfully');
     } catch (error) {
       toast.error('Failed to update automation');
     }
   };
 
-  if (!automation) {
+  // Build and send a payload constructed from the current page elements.
+  const callWebhook = async () => {
+    if (!automation.webhookUrl) {
+      toast.error("No webhook URL provided");
+      return;
+    }
+    setIsCallingWebhook(true);
+    try {
+      const payload = {
+        title: pageData.title,
+        subtitle: pageData.subtitle,
+        // For each input, create an array [label, type, value]
+        inputs: pageData.inputs.map((input) => [
+          input.label,
+          input.type,
+          input.value,
+        ]),
+      };
+
+      const res = await fetch(automation.webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error(`Webhook call failed with status: ${res.status}`);
+      }
+      const data = await res.text();
+      setWebhookResponse(data);
+      toast.success("Webhook called successfully!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to call webhook");
+    } finally {
+      setIsCallingWebhook(false);
+    }
+  };
+
+  // Handlers for updating the pageData state.
+  const handleTitleChange = (e) => {
+    setPageData((prev) => ({ ...prev, title: e.target.value }));
+  };
+
+  const handleSubtitleChange = (e) => {
+    setPageData((prev) => ({ ...prev, subtitle: e.target.value }));
+  };
+
+  const handleInputChange = (index, newValue) => {
+    setPageData((prev) => {
+      const newInputs = [...prev.inputs];
+      newInputs[index] = { ...newInputs[index], value: newValue };
+      return { ...prev, inputs: newInputs };
+    });
+  };
+
+  if (!automation || !pageData) {
     return <div>Loading...</div>;
   }
 
@@ -146,9 +255,18 @@ const AutomationDetail = () => {
       <PageLayout>
         <LeftPanel>
           <EditIcon onClick={() => setIsEditing(true)} size={20} />
-          <Title>{automation.title}</Title>
-          <Subtitle>{automation.subtitle}</Subtitle>
-          {automation.inputs.map((input) => (
+          {/* Editable title and subtitle */}
+          <TitleInput
+            value={pageData.title}
+            onChange={handleTitleChange}
+            placeholder="Enter title..."
+          />
+          <SubtitleInput
+            value={pageData.subtitle}
+            onChange={handleSubtitleChange}
+            placeholder="Enter subtitle..."
+          />
+          {pageData.inputs.map((input, index) => (
             <div key={input.id}>
               <InputLabel>{input.label}</InputLabel>
               {input.type === 'Text' ? (
@@ -157,13 +275,26 @@ const AutomationDetail = () => {
                   placeholder="Enter text..."
                   rows={3}
                   style={{ width: '100%' }}
+                  onChange={(e) => handleInputChange(index, e.target.value)}
                 />
-              ) : input.type === 'Audio' ? (
-                <DropArea>Drop your audio file here</DropArea>
-              ) : input.type === 'Document' ? (
-                <DropArea>Drop your document here</DropArea>
+              ) : input.type === 'Audio' || input.type === 'Document' ? (
+                // Replace the drop area with a file input so the selection is captured.
+                <input
+                  type="file"
+                  style={{ width: '100%', padding: '0.5rem' }}
+                  onChange={(e) =>
+                    handleInputChange(
+                      index,
+                      e.target.files[0]?.name || ""
+                    )
+                  }
+                />
               ) : input.type === 'Tone' ? (
-                <select defaultValue={input.value} style={{ width: '100%' }}>
+                <select
+                  value={input.value}
+                  onChange={(e) => handleInputChange(index, e.target.value)}
+                  style={{ width: '100%' }}
+                >
                   {TONE_PAIRS.map((tone) => (
                     <option key={tone} value={tone}>
                       {tone}
@@ -173,11 +304,29 @@ const AutomationDetail = () => {
               ) : null}
             </div>
           ))}
+          <ButtonContainer>
+            <Button
+              onClick={callWebhook}
+              disabled={isCallingWebhook || !automation.webhookUrl}
+            >
+              {isCallingWebhook
+                ? "Calling Webhook..."
+                : !automation.webhookUrl
+                ? "Webhook URL required"
+                : "Call Webhook"}
+            </Button>
+          </ButtonContainer>
         </LeftPanel>
 
         <RightPanel>
           <Title>Response</Title>
-          <p>Response will appear here after submission...</p>
+          <TextArea
+            value={webhookResponse}
+            placeholder="Response will appear here after submission..."
+            rows={10}
+            readOnly
+            style={{ width: '100%' }}
+          />
         </RightPanel>
       </PageLayout>
 
