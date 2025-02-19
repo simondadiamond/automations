@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { createAutomation, updateAutomation } from '../lib/airtable';
-import { Form, FormGroup, Input, Button, Label, Card, TextArea } from '../theme';
+import { Form, FormGroup, Input, Button, Card, TextArea } from '../theme';
 import styled from 'styled-components';
 import { TONE_PAIRS } from '../constants/tones';
 
@@ -52,8 +52,8 @@ const CloseButton = styled.button`
 const InputTypeButtons = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  justify-content: space-evenly;
+  margin-bottom: 0rem;
 `;
 
 const InputTypeButton = styled(Button)`
@@ -62,8 +62,8 @@ const InputTypeButton = styled(Button)`
 `;
 
 const InputsContainer = styled.div`
-  max-height: 300px; /* Set a maximum height */
-  overflow-y: auto; /* Enable scrolling */
+  max-height: 300px;
+  overflow-y: auto;
   margin-bottom: 1rem;
 `;
 
@@ -75,7 +75,7 @@ const InputContainer = styled.div`
   padding: 1rem;
 
   &:hover .delete-icon {
-    display: block; /* Show delete icon on hover */
+    display: block;
   }
 `;
 
@@ -87,7 +87,7 @@ const InputLabel = styled.label`
 `;
 
 const StyledInput = styled(Input)`
-  width: 100%; /* Set width to 100% */
+  width: 100%;
   padding: 0.5rem;
   border: 1px solid ${({ theme }) => theme.borderColor};
   border-radius: 0.25rem;
@@ -101,7 +101,7 @@ const StyledInput = styled(Input)`
 `;
 
 const StyledTextArea = styled(TextArea)`
-  width: 100%; /* Set width to 100% */
+  width: 100%;
   padding: 0.5rem;
   border: 1px solid ${({ theme }) => theme.borderColor};
   border-radius: 0.25rem;
@@ -134,49 +134,77 @@ const DeleteIcon = styled(Trash2)`
   right: 0.5rem;
   color: ${({ theme }) => theme.neonRed};
   cursor: pointer;
-  display: none; /* Hidden by default */
+  display: none;
 `;
 
-const AutomationForm = ({ onClose, onSuccess, initialData }) => {
+interface AutomationFormProps {
+  onClose: () => void;
+  onSuccess: () => void;
+  initialData?: any;
+  mode?: 'edit' | 'new';
+}
+
+const AutomationForm: React.FC<AutomationFormProps> = ({
+  onClose,
+  onSuccess,
+  initialData = {},
+  mode = 'edit',
+}) => {
   const [title, setTitle] = useState(initialData.title || '');
   const [subtitle, setSubtitle] = useState(initialData.subtitle || '');
   const [webhookUrl, setWebhookUrl] = useState(initialData.webhookUrl || '');
   const [inputs, setInputs] = useState(initialData.inputs || []);
 
-  const addInput = (type) => {
+  const addInput = (type: string) => {
     setInputs([...inputs, { label: '', type, value: '' }]);
   };
 
-  const handleInputChange = (index, field, value) => {
+  const handleInputChange = (index: number, field: string, value: string) => {
     const newInputs = [...inputs];
     newInputs[index][field] = value;
     setInputs(newInputs);
   };
 
-  const handleDeleteInput = (index) => {
+  const handleDeleteInput = (index: number) => {
     setInputs(inputs.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
-      await updateAutomation(initialData.id, {
-        title,
-        subtitle,
-        webhookUrl,
-        inputs: inputs.map((input, index) => ({
-          label: input.label,
-          type: input.type,
-          value: input.value,
-          order: index + 1,
-        })),
-      });
-      
-      toast.success('Automation updated successfully');
-      onSuccess();
+      if (mode === 'new') {
+        await createAutomation({
+          title,
+          subtitle,
+          webhookUrl,
+          inputs: inputs.map((input, index) => ({
+            label: input.label,
+            type: input.type,
+            value: input.value,
+            order: index + 1,
+          })),
+        });
+        toast.success('New automation created successfully');
+      } else {
+        await updateAutomation(initialData.id, {
+          title,
+          subtitle,
+          webhookUrl,
+          inputs: inputs.map((input, index) => ({
+            id: input.id, // May be undefined if new
+            label: input.label,
+            type: input.type,
+            value: input.value,
+            order: index + 1,
+          })),
+        });
+        toast.success('Automation updated successfully');
+      }
+      onSuccess(); // Refresh parent data
+      onClose();   // Close modal
     } catch (error) {
-      toast.error('Failed to update automation');
+      toast.error('Failed to save automation');
     }
   };
 
@@ -192,7 +220,7 @@ const AutomationForm = ({ onClose, onSuccess, initialData }) => {
         exit={{ scale: 0.9, opacity: 0 }}
       >
         <ModalHeader>
-          <ModalTitle>Edit Automation</ModalTitle>
+          <ModalTitle> </ModalTitle>
           <CloseButton onClick={onClose}>
             <X size={24} />
           </CloseButton>
@@ -244,7 +272,6 @@ const AutomationForm = ({ onClose, onSuccess, initialData }) => {
           <InputsContainer>
             {inputs.map((input, index) => (
               <InputContainer key={index}>
-                <InputLabel>Label</InputLabel>
                 <StyledInput
                   type="text"
                   placeholder="Enter label..."
@@ -252,7 +279,7 @@ const AutomationForm = ({ onClose, onSuccess, initialData }) => {
                   onChange={(e) => handleInputChange(index, 'label', e.target.value)}
                   required
                 />
-                <InputLabel>{input.type}</InputLabel>
+
                 {input.type === 'Text' && (
                   <StyledTextArea
                     placeholder="Enter text..."
@@ -262,14 +289,10 @@ const AutomationForm = ({ onClose, onSuccess, initialData }) => {
                   />
                 )}
                 {input.type === 'Audio' && (
-                  <DropArea>
-                    Drop your audio file here
-                  </DropArea>
+                  <DropArea>Drop your audio file here</DropArea>
                 )}
                 {input.type === 'Document' && (
-                  <DropArea>
-                    Drop your document here
-                  </DropArea>
+                  <DropArea>Drop your document here</DropArea>
                 )}
                 {input.type === 'Tone' && (
                   <StyledInput
@@ -293,8 +316,9 @@ const AutomationForm = ({ onClose, onSuccess, initialData }) => {
             ))}
           </InputsContainer>
 
+          {/* Change button text based on mode */}
           <Button type="submit">
-            Save Changes
+            {mode === 'new' ? 'Create Automation' : 'Save Changes'}
           </Button>
         </Form>
       </ModalContent>

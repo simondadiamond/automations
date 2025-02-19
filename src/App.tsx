@@ -47,7 +47,7 @@ function App() {
             <Toaster position="top-right" />
             <Container>
               <Title>
-                <span>AI</span> Automations
+                <span>AI Automations</span>
               </Title>
               <Subtitle>
                 Streamline your workflow with powerful AI-driven automation tools
@@ -66,6 +66,7 @@ function App() {
                       setShowForm(false);
                       loadAutomations();
                     }}
+                    mode="new"  // Pass mode "new" for creating a new automation.
                   />
                 )}
               </AnimatePresence>

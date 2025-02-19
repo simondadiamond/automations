@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { ArrowLeft, X, Edit } from 'lucide-react'; // Import Edit icon
+import { ArrowLeft, Edit } from 'lucide-react';
 import { Card, Button, TextArea } from '../theme';
-import { getAutomationById, updateAutomation } from '../lib/airtable'; // Ensure you have this function to fetch automation details
+import { getAutomationById } from '../lib/airtable';
 import { TONE_PAIRS } from '../constants/tones';
-import AutomationForm from '../components/AutomationForm'; // Import the AutomationForm component
-import { toast } from 'react-hot-toast'; // Import toast
+import AutomationForm from '../components/AutomationForm';
+import { toast } from 'react-hot-toast';
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -44,7 +44,7 @@ const LeftPanel = styled(Card)`
   padding: 1.5rem;
   background: ${({ theme }) => theme.cardBg};
   border: 1px solid rgba(255, 255, 255, 0.1);
-  position: relative; /* For positioning the edit icon */
+  position: relative;
 `;
 
 const RightPanel = styled(Card)`
@@ -73,11 +73,6 @@ const InputLabel = styled.span`
   margin-bottom: 0.5rem;
 `;
 
-const InputValue = styled.p`
-  color: ${({ theme }) => theme.text};
-  margin-bottom: 1rem;
-`;
-
 const DropArea = styled.div`
   border: 2px dashed ${({ theme }) => theme.borderColor};
   border-radius: 0.5rem;
@@ -86,7 +81,7 @@ const DropArea = styled.div`
   color: ${({ theme }) => theme.textSecondary};
   background: rgba(0, 0, 0, 0.2);
   margin-top: 0.5rem;
-  width: 100%; /* Set width to 100% */
+  width: 100%;
 
   &:hover {
     background: rgba(0, 0, 0, 0.3);
@@ -110,13 +105,13 @@ const AutomationDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [automation, setAutomation] = useState(null);
-  const [isEditing, setIsEditing] = useState(false); // State to manage modal visibility
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     const fetchAutomation = async () => {
       try {
         const data = await getAutomationById(id);
-        console.log('Fetched Automation Data:', data); // Log the fetched data
+        console.log('Fetched Automation Data:', data);
         setAutomation(data);
       } catch (error) {
         console.error('Failed to fetch automation:', error);
@@ -126,13 +121,12 @@ const AutomationDetail = () => {
     fetchAutomation();
   }, [id]);
 
-  const handleUpdate = async (updatedData) => {
+  // When the form is submitted, re-fetch the updated automation record.
+  const handleUpdate = async () => {
     try {
-      await updateAutomation(id, updatedData);
+      const updatedData = await getAutomationById(id);
+      setAutomation(updatedData);
       toast.success('Automation updated successfully');
-      setIsEditing(false); // Close the modal after saving
-      const data = await getAutomationById(id); // Refresh the data
-      setAutomation(data);
     } catch (error) {
       toast.error('Failed to update automation');
     }
@@ -162,8 +156,7 @@ const AutomationDetail = () => {
                   value={input.value}
                   placeholder="Enter text..."
                   rows={3}
-                  onChange={(e) => handleInputChange(input.id, 'value', e.target.value)} // Make it editable
-                  style={{ width: '100%' }} // Ensure full width
+                  style={{ width: '100%' }}
                 />
               ) : input.type === 'Audio' ? (
                 <DropArea>Drop your audio file here</DropArea>
@@ -184,17 +177,16 @@ const AutomationDetail = () => {
 
         <RightPanel>
           <Title>Response</Title>
-          <InputValue>
-            Response will appear here after submission...
-          </InputValue>
+          <p>Response will appear here after submission...</p>
         </RightPanel>
       </PageLayout>
 
       {isEditing && (
         <AutomationForm
           onClose={() => setIsEditing(false)}
-          onSuccess={handleUpdate}
-          initialData={automation} // Pass the current automation data to the form
+          onSuccess={handleUpdate} // Refresh automation data after update
+          initialData={automation}
+          mode="edit"
         />
       )}
     </PageContainer>

@@ -100,23 +100,36 @@ export async function getAutomations(): Promise<Automation[]> {
 }
 
 export async function getAutomationById(id: string): Promise<Automation> {
+  // Fetch the automation record.
   const record = await automationsTable.find(id);
-  console.log('Fetched Automation Record:', record); // Log the fetched record
+  const title = record.get('Title') as string;
 
-  const title = record.get('Title'); // Get the title from the record
+  // Ensure inputIds is always an array, even if the field is undefined.
+  const inputIds = (record.fields.Inputs || []) as string[];
 
-  const inputs = await inputsTable
-    .select({
-      filterByFormula: `{Automation} = "${title}"`, // Use the title for filtering
-      sort: [{ field: 'Order', direction: 'asc' }],
-    })
-    .all();
+  let inputs: any[] = [];
+  if (inputIds.length > 0) {
+    // Build the filter formula to match any of the input IDs.
+    const filterFormula = `OR(${inputIds
+      .map((inputId) => `RECORD_ID()='${inputId}'`)
+      .join(', ')})`;
 
-  console.log('Fetched Inputs:', inputs); // Log the fetched inputs
+    // Fetch the inputs whose record IDs are in the inputIds array.
+    inputs = await inputsTable
+      .select({
+        filterByFormula: filterFormula,
+        sort: [{ field: 'Order', direction: 'asc' }],
+      })
+      .all();
+
+  } else {
+    // Safety net: No input IDs available, so we log a message and leave inputs as an empty array.
+    console.log('No input IDs found for this automation. Setting inputs to an empty array.');
+  }
 
   return {
     id: record.id,
-    title: title as string,
+    title,
     subtitle: record.get('Subtitle') as string,
     webhookUrl: record.get('Webhook URL') as string,
     createdAt: record.get('Created At') as string,
@@ -132,7 +145,14 @@ export async function getAutomationById(id: string): Promise<Automation> {
   };
 }
 
+
 export async function updateAutomation(id: string, data: Partial<Automation>) {
+  console.log('Fetched data:', data);
+
+  const record = await automationsTable.find(id);
+  console.log('Fetched automation record:', record);
+
+  // Update the automation record.
   await automationsTable.update([
     {
       id,
@@ -145,18 +165,36 @@ export async function updateAutomation(id: string, data: Partial<Automation>) {
   ]);
 
   if (data.inputs) {
-    // Delete existing inputs
-    const existingInputs = await inputsTable
-      .select({
-        filterByFormula: `{Automation} = "${id}"`,
-      })
-      .all();
+    // Get the array of input IDs from the automation record's fields.
+    // (This field should be set in the automation record.)
+    const inputIds = (record.fields.Inputs || []) as string[];
 
-    await Promise.all(
-      existingInputs.map((input) => inputsTable.destroy(input.id))
-    );
+    if (inputIds.length > 0) {
+      // Build a filter formula that matches any record whose RECORD_ID() is in the inputIds array.
+      // For example: OR(RECORD_ID()='rec1', RECORD_ID()='rec2', ...)
+      const filterFormula = `OR(${inputIds
+        .map((inputId) => `RECORD_ID()='${inputId}'`)
+        .join(', ')})`;
 
-    // Create new inputs
+      // Retrieve all input records with a record ID from the inputIds array.
+      const existingInputs = await inputsTable
+        .select({
+          filterByFormula: filterFormula,
+        })
+        .all();
+
+      console.log('Fetched existingInputs:', existingInputs);
+
+      // Delete all matching input records.
+      await Promise.all(
+        existingInputs.map((input) => inputsTable.destroy(input.id))
+      );
+    } else {
+      console.log("No input IDs found in the automation record's Inputs field.");
+    }
+
+    // Now create new input records based on data.inputs.
+    // Each new input record will reference the automation id in its "Automation" field.
     const inputRecords = data.inputs.map((input, index) => ({
       fields: {
         Automation: [id],
@@ -167,9 +205,12 @@ export async function updateAutomation(id: string, data: Partial<Automation>) {
       },
     }));
 
-    await inputsTable.create(inputRecords);
+    // Create new records in the inputsTable.
+    const createdInputs = await inputsTable.create(inputRecords);
+    console.log('Created new inputs:', createdInputs);
   }
 }
+
 
 export async function deleteAutomation(id: string) {
   const inputs = await inputsTable
