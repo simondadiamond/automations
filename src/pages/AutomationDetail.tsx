@@ -190,11 +190,16 @@ const AutomationDetail = () => {
   const handleUpdate = async () => {
     try {
       const updatedData = await getAutomationById(id);
+      const inputsWithDefaults = updatedData.inputs.map(input =>
+        input.type === 'Tone' && !input.value
+          ? { ...input, value: TONE_PAIRS[0] }
+          : input
+      );
       setAutomation(updatedData);
       setPageData({
         title: updatedData.title,
         subtitle: updatedData.subtitle,
-        inputs: updatedData.inputs,
+        inputs: inputsWithDefaults,
       });
       toast.success('Automation updated successfully');
     } catch (error) {
