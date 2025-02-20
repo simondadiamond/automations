@@ -222,3 +222,19 @@ export async function deleteAutomation(id: string) {
   await Promise.all(inputs.map((input) => inputsTable.destroy(input.id)));
   await automationsTable.destroy(id);
 }
+
+// New function to call webhook and process response
+export async function callWebhook(url: string, payload: any): Promise<string> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+
+  // Updated regex to trim only unwanted characters at the start and end
+  return text.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '');
+}

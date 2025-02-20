@@ -8,16 +8,6 @@ import { TONE_PAIRS } from '../constants/tones';
 import AutomationForm from '../components/AutomationForm';
 import { toast } from 'react-hot-toast';
 
-// Helper function to read a file and return its contents as a data URL
-const readFileContent = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (event) => resolve(event.target.result);
-    reader.onerror = (error) => reject(error);
-    reader.readAsDataURL(file);
-  });
-};
-
 const PageContainer = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.background};
@@ -219,33 +209,14 @@ const AutomationDetail = () => {
     }
     setIsCallingWebhook(true);
     try {
-      // Read file contents if files exist
-      const audioData = audioFile ? await readFileContent(audioFile) : null;
-      const documentData = documentFile ? await readFileContent(documentFile) : null;
-
       const payload = {
         title: pageData.title,
         subtitle: pageData.subtitle,
-        inputs: pageData.inputs.map((input) => {
-          if (input.type === 'Audio') {
-            return [
-              input.label,
-              input.type,
-              audioFile
-                ? { fileName: audioFile.name, fileData: audioData }
-                : input.value,
-            ];
-          } else if (input.type === 'Document') {
-            return [
-              input.label,
-              input.type,
-              documentFile
-                ? { fileName: documentFile.name, fileData: documentData }
-                : input.value,
-            ];
-          }
-          return [input.label, input.type, input.value];
-        }),
+        inputs: pageData.inputs.map((input) => [
+          input.label,
+          input.type,
+          input.type === 'Audio' ? audioFile : input.type === 'Document' ? documentFile : input.value,
+        ]),
       };
 
       const res = await fetch(automation.webhookUrl, {
@@ -259,7 +230,17 @@ const AutomationDetail = () => {
         throw new Error(`Webhook call failed with status: ${res.status}`);
       }
       const data = await res.text();
-      setWebhookResponse(data);
+			const trimmedData = data
+		  // Remove the JSON wrapper at the start and end
+		  .replace(/^\{"output":"/, '')
+		  .replace(/"}$/, '')
+		  // Unescape all escaped double quotes
+		  .replace(/\\"/g, '"')
+		  // Ensure every <a> tag opens in a new tab if it doesn't already have a target attribute
+		  .replace(/<a\s+(?!.*?\btarget=)/gi, '<a target="_blank" ');
+
+			
+      setWebhookResponse(trimmedData);
       toast.success("Webhook called successfully!");
     } catch (error) {
       console.error(error);
@@ -458,12 +439,17 @@ const AutomationDetail = () => {
 
         <RightPanel>
           <Title>Response</Title>
-          <TextArea
-            value={webhookResponse}
-            placeholder="Response will appear here after submission..."
-            rows={10}
-            readOnly
-            style={{ width: '100%' }}
+          <div
+            style={{
+              width: '100%',
+              minHeight: '200px',
+              padding: '1rem',
+              background: 'rgba(0, 0, 0, 0.2)',
+              borderRadius: '0.5rem',
+              color: '#fff',
+              overflowY: 'auto',
+            }}
+            dangerouslySetInnerHTML={{ __html: webhookResponse }}
           />
         </RightPanel>
       </PageLayout>
