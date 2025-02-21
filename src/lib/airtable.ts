@@ -1,7 +1,7 @@
 import Airtable from 'airtable';
 
-const AIRTABLE_TOKEN = import.meta.env.VITE_AIRTABLE_TOKEN;
-const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
+const AIRTABLE_TOKEN = import.meta.env.AIRTABLE_TOKEN;
+const AIRTABLE_BASE_ID = import.meta.env.AIRTABLE_BASE_ID;
 
 // Configure Airtable with the personal access token
 Airtable.configure({

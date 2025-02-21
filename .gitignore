@@ -1,5 +1,6 @@
 # Ignore environment variables
 .env
+.env.local
 
 # Node modules
 node_modules/
@@ -43,3 +44,4 @@ jspm_packages/
 *.env.test.local
 *.env.production.local
 .env
+.env.local
